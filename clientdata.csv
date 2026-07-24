@@ -1,0 +1,2 @@
+client_id,age,gender,residency_status,spouse_citizenship,annual_budget_sgd,needs_government_hospital_plan,needs_critical_illness_plan,is_fictional
+CLIENT-001,34,Female,Foreigner,Singapore citizen,3000,true,true,true
