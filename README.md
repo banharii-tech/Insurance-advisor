@@ -85,3 +85,19 @@ claims, or current pricing and policy terms. It contains no real customer,
 insurer, or product data. Anyone seeking insurance guidance should verify
 current official information and speak with an appropriately licensed
 professional.
+
+## Web application
+
+The KAN-6 Next.js application is in [`frontend`](frontend). It provides a
+browser-based form, compares the three fictional plans using the same
+age/coverage/budget rules, and creates a completed PDF summary locally without
+uploading or storing the entered details.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+See [`frontend/README.md`](frontend/README.md) for the full development and
+validation commands.
