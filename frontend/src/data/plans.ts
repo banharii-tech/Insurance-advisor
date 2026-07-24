@@ -1,0 +1,43 @@
+import type { InsurancePlan } from "@/types/planning";
+
+export const FICTIONAL_PLANS: InsurancePlan[] = [
+  {
+    planId: "PLAN-001",
+    providerName: "Example Provider Alpha",
+    planName: "Example Essential Bundle",
+    minAge: 18,
+    maxAge: 65,
+    includesGovernmentHospital: true,
+    hospitalCoverageLevel: "Public hospital standard ward",
+    includesCriticalIllness: true,
+    criticalIllnessCoverageSgd: 30_000,
+    annualPremiumSgd: 2_400,
+    isFictional: true,
+  },
+  {
+    planId: "PLAN-002",
+    providerName: "Example Provider Beta",
+    planName: "Example Balanced Bundle",
+    minAge: 18,
+    maxAge: 65,
+    includesGovernmentHospital: true,
+    hospitalCoverageLevel: "Public hospital enhanced ward",
+    includesCriticalIllness: true,
+    criticalIllnessCoverageSgd: 50_000,
+    annualPremiumSgd: 3_000,
+    isFictional: true,
+  },
+  {
+    planId: "PLAN-003",
+    providerName: "Example Provider Gamma",
+    planName: "Example Plus Bundle",
+    minAge: 18,
+    maxAge: 65,
+    includesGovernmentHospital: true,
+    hospitalCoverageLevel: "Public hospital enhanced ward",
+    includesCriticalIllness: true,
+    criticalIllnessCoverageSgd: 75_000,
+    annualPremiumSgd: 3_600,
+    isFictional: true,
+  },
+];
