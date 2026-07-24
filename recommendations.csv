@@ -1,0 +1,4 @@
+recommendation_id,client_id,plan_id,age_match,coverage_match,budget_match,criteria_met_count,recommendation_status,explanation
+REC-001,CLIENT-001,PLAN-001,true,true,true,3,Alternative,"Age and both requested coverage categories match; the S$2,400 annual premium is within the S$3,000 budget, but this option has less fictional critical-illness coverage than PLAN-002."
+REC-002,CLIENT-001,PLAN-002,true,true,true,3,Recommended,"Age and both requested coverage categories match; the S$3,000 annual premium is within budget, and this option provides the highest fictional critical-illness coverage among options within budget."
+REC-003,CLIENT-001,PLAN-003,true,true,false,2,Not recommended,"Age and both requested coverage categories match, but the S$3,600 annual premium exceeds the S$3,000 budget by S$600."

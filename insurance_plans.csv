@@ -1,0 +1,4 @@
+plan_id,provider_name,plan_name,min_age,max_age,includes_government_hospital_plan,hospital_coverage_level,includes_critical_illness_plan,critical_illness_coverage_sgd,annual_premium_sgd,is_fictional
+PLAN-001,Example Provider Alpha,Example Essential Bundle,18,65,true,Public hospital standard ward,true,30000,2400,true
+PLAN-002,Example Provider Beta,Example Balanced Bundle,18,65,true,Public hospital enhanced ward,true,50000,3000,true
+PLAN-003,Example Provider Gamma,Example Plus Bundle,18,65,true,Public hospital enhanced ward,true,75000,3600,true
