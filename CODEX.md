@@ -31,6 +31,9 @@ phase.
   combined, and unsupported requests. Life-plan and financial-advice requests
   receive a clear boundary and guided choices for the closest supported
   fictional planning summaries.
+- **KAN-10 — completed:** temporary sign-up/sign-in, isolated user workspaces,
+  saved suggestion and document history, draft-only disclaimers, and
+  professional SaaS interface polish are implemented.
 
 ## Delivery phases
 
@@ -75,6 +78,9 @@ This phase was completed by KAN-7. The development foundation:
 - leaves authentication, persistent customer accounts, and new recommendation
   features out of scope.
 
+KAN-10 later replaced this historical fake-login screen with temporary local
+accounts and per-user draft history.
+
 ### Phase 4: Supported plan-type guidance
 
 This phase was completed by KAN-9. The chat and summary flow:
@@ -88,19 +94,32 @@ This phase was completed by KAN-9. The chat and summary flow:
 - guides the user back into a supported journey; and
 - labels the generated PDF for the selected supported planning type.
 
+### Phase 5: Temporary multi-user workspaces
+
+This phase was completed by KAN-10. The local prototype:
+
+- lets users register and return with prototype-only credentials;
+- salts and hashes passwords with PBKDF2-SHA256;
+- isolates bearer sessions and saved drafts by user;
+- automatically saves each completed fictional comparison;
+- lets returning users view and download prior draft documents;
+- clears accounts, sessions, and drafts whenever the backend restarts; and
+- labels on-screen suggestions and PDFs as drafts requiring review.
+
 ## Implemented user journey
 
-1. The user enters through a no-auth demo login.
-2. The user chooses a supported planning-summary type or describes their need.
-3. The AI-guided chat redirects unsupported requests or collects the minimum
+1. The user signs up or signs in to a temporary local workspace.
+2. Returning users can review and download previously saved draft documents.
+3. The user chooses a supported planning-summary type or describes their need.
+4. The AI-guided chat redirects unsupported requests or collects the minimum
    relevant planning information.
-4. The user reviews and can correct the extracted criteria.
-5. The application validates the criteria.
-6. The application filters and ranks fictional plans using documented,
+5. The user reviews and can correct the extracted criteria.
+6. The application validates the criteria.
+7. The application filters and ranks fictional plans using documented,
    deterministic matching rules.
-7. The application displays an explained shortlist and can create a local PDF
-   summary.
-8. The user can start over or end the disposable demo session.
+8. The application saves the reviewed profile and fictional comparison as a
+   draft, then can create a local PDF.
+9. The user can start over or sign out of the disposable account session.
 
 ## Implemented planning criteria
 
@@ -117,8 +136,11 @@ The current matching engine does not use residency or spouse citizenship as
 eligibility rules because the fictional plan data does not provide a basis for
 those rules.
 
-Do not collect names, NRIC numbers, contact details, credentials, detailed
-medical records, or other unnecessary personal information.
+The account screen separately collects a display name, email, and
+prototype-only password. These values are never included in the AI chat.
+Within the planning flow, do not collect names, NRIC numbers, contact details,
+credentials, detailed medical records, or other unnecessary personal
+information.
 
 ### Future V1 criteria, not yet implemented
 
@@ -272,8 +294,11 @@ Current safeguards:
   fictional;
 - display the prototype and financial-advice disclaimer;
 - block common contact and identification patterns before an AI request;
-- do not log or persist planning answers in the backend; and
-- store only disposable demo session IDs in SQLite.
+- do not log or persist raw chat messages in the backend;
+- persist only account data, session tokens, reviewed profiles, and fictional
+  comparison snapshots in the disposable database;
+- salt and hash temporary passwords rather than storing plaintext; and
+- label every suggestion and generated document as a draft requiring review.
 
 Before introducing real product data, display verified sources, last-reviewed
 dates, and warnings that terms, premiums, exclusions, underwriting, and
@@ -299,10 +324,12 @@ A feature is complete only when:
 - **Backend:** FastAPI and Pydantic in `backend/`; LiteLLM calls
   `openrouter/openai/gpt-oss-120b` through OpenRouter with Cerebras-only,
   no-fallback, zero-data-retention routing.
-- **Temporary state:** SQLite stores only no-auth demo session IDs and is
+- **Temporary state:** SQLite stores temporary users, hashed passwords,
+  sessions, and per-user draft snapshots. It resets at backend startup and is
   removed by the stop script.
-- **Core endpoints:** `GET /health`, `POST /api/demo-sessions`,
-  `DELETE /api/demo-sessions/{session_id}`, and `POST /api/chat`.
+- **Core endpoints:** `GET /health`, `POST /api/auth/sign-up`,
+  `POST /api/auth/sign-in`, `DELETE /api/auth/sessions/current`,
+  `GET|POST /api/suggestions`, and `POST /api/chat`.
 - **Recommendation boundary:** the AI extracts criteria; the browser runs the
   unchanged deterministic plan evaluation.
 - **Local run:** from the repository root, use `./scripts/start.sh`, open
@@ -313,8 +340,9 @@ A feature is complete only when:
 - **Supported summaries:** public/government hospital, critical illness, and a
   combined summary. Life plans and personal financial advice remain outside
   the prototype.
-- **Verified baseline:** 13 backend tests and 23 frontend tests pass; frontend
-  lint and type-check also pass for the KAN-9 implementation.
-- **Intentional limitations:** no real authentication, accounts, production
-  database, real insurer data, life-plan generation, personal financial advice,
-  or final suitability assessment.
+- **Verified baseline:** 17 backend tests and 28 frontend tests pass; frontend
+  lint and type-check also pass for the KAN-10 implementation.
+- **Intentional limitations:** accounts are local and temporary rather than
+  production identity, sessions do not survive a backend restart, and there is
+  no production database, real insurer data, life-plan generation, personal
+  financial advice, or final suitability assessment.

@@ -12,6 +12,10 @@ import { FICTIONAL_PLANS } from "@/data/plans";
 import { sendChatMessages, type ChatMessage } from "@/lib/chat";
 import { formatSgd } from "@/lib/format";
 import { evaluatePlans } from "@/lib/recommendation";
+import type {
+  SuggestionDraftInput,
+  SummaryType,
+} from "@/lib/session";
 import { validateProfile } from "@/lib/validation";
 import type {
   PlanEvaluation,
@@ -136,7 +140,30 @@ function PlanCard({ evaluation }: { evaluation: PlanEvaluation }) {
   );
 }
 
-export default function InsurancePlanner() {
+function getSummaryType(profile: PlanningProfile): SummaryType {
+  if (profile.needsGovernmentHospital && profile.needsCriticalIllness) {
+    return "combined";
+  }
+  return profile.needsGovernmentHospital
+    ? "hospitalisation"
+    : "critical_illness";
+}
+
+const SUMMARY_TITLES: Record<SummaryType, string> = {
+  hospitalisation: "Public hospital planning draft",
+  critical_illness: "Critical illness planning draft",
+  combined: "Combined coverage planning draft",
+};
+
+export default function InsurancePlanner({
+  onSuggestionCreated,
+  sessionId,
+}: {
+  sessionId?: string;
+  onSuggestionCreated?: (
+    suggestion: SuggestionDraftInput,
+  ) => Promise<void>;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
   const [answer, setAnswer] = useState("");
   const [profile, setProfile] = useState<PlanningProfile | null>(null);
@@ -147,6 +174,9 @@ export default function InsurancePlanner() {
   );
   const [chatError, setChatError] = useState("");
   const [showPlanChoices, setShowPlanChoices] = useState(true);
+  const [historySaveState, setHistorySaveState] = useState<
+    "idle" | "working" | "done" | "error"
+  >("idle");
   const [downloadState, setDownloadState] = useState<
     "idle" | "working" | "done" | "error"
   >("idle");
@@ -184,7 +214,7 @@ export default function InsurancePlanner() {
     setChatState("working");
 
     try {
-      const response = await sendChatMessages(nextMessages);
+      const response = await sendChatMessages(nextMessages, sessionId);
       setMessages((current) => [
         ...current,
         {
@@ -222,7 +252,7 @@ export default function InsurancePlanner() {
     }
   };
 
-  const handleCompare = (event: FormEvent<HTMLFormElement>) => {
+  const handleCompare = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!profile) return;
     const nextErrors = validateProfile(profile);
@@ -232,8 +262,29 @@ export default function InsurancePlanner() {
       return;
     }
 
-    setEvaluations(evaluatePlans(profile, FICTIONAL_PLANS));
+    const nextEvaluations = evaluatePlans(profile, FICTIONAL_PLANS);
+    setEvaluations(nextEvaluations);
     requestAnimationFrame(() => resultsRef.current?.focus());
+
+    if (onSuggestionCreated) {
+      const summaryType = getSummaryType(profile);
+      setHistorySaveState("working");
+      try {
+        await onSuggestionCreated({
+          title: SUMMARY_TITLES[summaryType],
+          summaryType,
+          profile,
+          evaluations: nextEvaluations,
+          recommendedPlanName:
+            nextEvaluations.find(
+              (evaluation) => evaluation.status === "Recommended",
+            )?.plan.planName ?? null,
+        });
+        setHistorySaveState("done");
+      } catch {
+        setHistorySaveState("error");
+      }
+    }
   };
 
   const handleDownload = async () => {
@@ -257,6 +308,7 @@ export default function InsurancePlanner() {
     setEvaluations(null);
     setChatError("");
     setShowPlanChoices(true);
+    setHistorySaveState("idle");
     setChatState("idle");
     setDownloadState("idle");
   };
@@ -264,6 +316,18 @@ export default function InsurancePlanner() {
   const recommended = evaluations?.find(
     (evaluation) => evaluation.status === "Recommended",
   );
+  const documentStatus =
+    downloadState === "done"
+      ? "Your draft PDF download has started."
+      : downloadState === "error"
+        ? "The draft PDF could not be created. Please try again."
+        : historySaveState === "working"
+          ? "Saving this draft to your account…"
+          : historySaveState === "done"
+            ? "This draft is available in your document history."
+            : historySaveState === "error"
+              ? "The comparison is ready, but its draft history could not be saved."
+              : "";
 
   return (
     <section className={styles.planner} aria-labelledby="planner-heading">
@@ -570,7 +634,7 @@ export default function InsurancePlanner() {
                 }
               >
                 <span>
-                  {recommended ? "Prototype suggestion" : "No full match"}
+                  {recommended ? "Draft suggestion" : "Draft · no full match"}
                 </span>
                 <strong>
                   {recommended
@@ -593,11 +657,12 @@ export default function InsurancePlanner() {
               </div>
               <div className={styles.downloadPanel}>
                 <div>
-                  <span>Download</span>
-                  <strong>Keep your fictional planning summary</strong>
+                  <span>Draft document</span>
+                  <strong>Keep your fictional planning draft</strong>
                   <p>
                     The completed PDF is created in this browser and downloaded
-                    directly to your device.
+                    directly to your device. Suggestions are drafts only and
+                    must be reviewed before any decision.
                   </p>
                 </div>
                 <button
@@ -612,10 +677,7 @@ export default function InsurancePlanner() {
                   <span aria-hidden="true">↓</span>
                 </button>
                 <p className={styles.downloadStatus} aria-live="polite">
-                  {downloadState === "done" &&
-                    "Your PDF download has started."}
-                  {downloadState === "error" &&
-                    "The PDF could not be created. Please try again."}
+                  {documentStatus}
                 </p>
               </div>
               <button

@@ -87,14 +87,14 @@ export async function createPlanningSummaryPdf(
     y -= options.gapAfter ?? 0;
   };
 
-  drawText(`FICTIONAL ${getPlanningSummaryTitle(profile)}`, {
+  drawText(`DRAFT ONLY · FICTIONAL ${getPlanningSummaryTitle(profile)}`, {
     size: 16,
     isBold: true,
     color: rgb(0.02, 0.35, 0.3),
     gapAfter: 8,
   });
   drawText(
-    "Learning prototype only. All products, providers, premiums and coverage values are fictional. This is not financial advice.",
+    "Draft for learning purposes only. It requires review before any decision. All products, providers, premiums and coverage values are fictional. This is not financial advice.",
     { isBold: true, color: rgb(0.65, 0.16, 0.12), gapAfter: 12 },
   );
   drawText(

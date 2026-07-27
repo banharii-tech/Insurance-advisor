@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 from app.ai import collect_criteria
-from app.database import TemporaryDatabase
-from app.main import app
+from app.database import TemporaryDatabase, UserSession
+from app.main import app, require_session
 from app.schemas import ChatExtraction, ChatMessage
 
 
@@ -51,10 +51,57 @@ UNSUPPORTED_EXTRACTION = ChatExtraction.model_validate(
     }
 )
 
+SUGGESTION_DRAFT = {
+    "title": "Combined coverage planning draft",
+    "summaryType": "combined",
+    "profile": {
+        "age": 34,
+        "annualBudgetSgd": 3000,
+        "residencyStatus": "Foreigner",
+        "spouseCitizenship": "Singapore citizen",
+        "needsGovernmentHospital": True,
+        "needsCriticalIllness": True,
+    },
+    "evaluations": [
+        {
+            "plan": {
+                "planId": "PLAN-001",
+                "providerName": "Example Assurance",
+                "planName": "Example Balanced Bundle",
+                "minAge": 18,
+                "maxAge": 65,
+                "includesGovernmentHospital": True,
+                "hospitalCoverageLevel": "Public hospital",
+                "includesCriticalIllness": True,
+                "criticalIllnessCoverageSgd": 100000,
+                "annualPremiumSgd": 2400,
+                "isFictional": True,
+            },
+            "ageMatch": True,
+            "coverageMatch": True,
+            "budgetMatch": True,
+            "criteriaMetCount": 3,
+            "status": "Recommended",
+            "explanation": "This fictional plan passes all selected checks.",
+        }
+    ],
+    "recommendedPlanName": "Example Balanced Bundle",
+}
+
 
 class ChatApiTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        app.dependency_overrides[require_session] = lambda: UserSession(
+            session_id="test-session",
+            user_id="test-user",
+            display_name="Test User",
+            email="test@example.test",
+            created_at="2026-07-27T00:00:00+00:00",
+        )
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
 
     @patch("app.main.collect_criteria", new_callable=AsyncMock)
     def test_returns_reviewable_profile(self, mock_collect: AsyncMock) -> None:
@@ -114,8 +161,8 @@ class ChatApiTests(unittest.TestCase):
         self.assertNotIn("provider response", response.text)
 
 
-class DemoSessionApiTests(unittest.TestCase):
-    def test_session_lifecycle_and_database_health(self) -> None:
+class AccountAndSuggestionApiTests(unittest.TestCase):
+    def test_account_session_and_saved_draft_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary_database = TemporaryDatabase(
                 Path(directory) / "clearcover.sqlite3"
@@ -123,18 +170,166 @@ class DemoSessionApiTests(unittest.TestCase):
             with patch.object(main_module, "database", temporary_database):
                 with TestClient(app) as client:
                     health = client.get("/health")
-                    created = client.post("/api/demo-sessions")
+                    created = client.post(
+                        "/api/auth/sign-up",
+                        json={
+                            "displayName": "Alice Tan",
+                            "email": "alice@example.test",
+                            "password": "strong-pass-1",
+                        },
+                    )
 
                     self.assertEqual(health.status_code, 200)
                     self.assertEqual(health.json()["database"], "ok")
                     self.assertEqual(created.status_code, 201)
-                    self.assertEqual(temporary_database.count_demo_sessions(), 1)
-
-                    deleted = client.delete(
-                        f"/api/demo-sessions/{created.json()['sessionId']}"
+                    self.assertEqual(
+                        created.json()["user"]["displayName"], "Alice Tan"
                     )
-                    self.assertEqual(deleted.status_code, 204)
-                    self.assertEqual(temporary_database.count_demo_sessions(), 0)
+                    token = created.json()["sessionId"]
+                    headers = {"Authorization": f"Bearer {token}"}
+
+                    saved = client.post(
+                        "/api/suggestions",
+                        json=SUGGESTION_DRAFT,
+                        headers=headers,
+                    )
+                    self.assertEqual(saved.status_code, 201)
+                    self.assertEqual(saved.json()["summaryType"], "combined")
+
+                    history = client.get(
+                        "/api/suggestions", headers=headers
+                    )
+                    self.assertEqual(history.status_code, 200)
+                    self.assertEqual(len(history.json()), 1)
+
+                    signed_out = client.delete(
+                        "/api/auth/sessions/current", headers=headers
+                    )
+                    self.assertEqual(signed_out.status_code, 204)
+                    self.assertEqual(
+                        client.get(
+                            "/api/suggestions", headers=headers
+                        ).status_code,
+                        401,
+                    )
+
+    def test_returning_users_keep_separate_draft_histories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_database = TemporaryDatabase(
+                Path(directory) / "clearcover.sqlite3"
+            )
+            with patch.object(main_module, "database", temporary_database):
+                with TestClient(app) as client:
+                    alice = client.post(
+                        "/api/auth/sign-up",
+                        json={
+                            "displayName": "Alice Tan",
+                            "email": "alice@example.test",
+                            "password": "strong-pass-1",
+                        },
+                    ).json()
+                    bob = client.post(
+                        "/api/auth/sign-up",
+                        json={
+                            "displayName": "Bob Lim",
+                            "email": "bob@example.test",
+                            "password": "strong-pass-2",
+                        },
+                    ).json()
+                    alice_headers = {
+                        "Authorization": f"Bearer {alice['sessionId']}"
+                    }
+                    bob_headers = {
+                        "Authorization": f"Bearer {bob['sessionId']}"
+                    }
+                    client.post(
+                        "/api/suggestions",
+                        json=SUGGESTION_DRAFT,
+                        headers=alice_headers,
+                    )
+
+                    self.assertEqual(
+                        client.get(
+                            "/api/suggestions", headers=bob_headers
+                        ).json(),
+                        [],
+                    )
+
+                    returning = client.post(
+                        "/api/auth/sign-in",
+                        json={
+                            "email": "alice@example.test",
+                            "password": "strong-pass-1",
+                        },
+                    )
+                    self.assertEqual(returning.status_code, 200)
+                    returning_headers = {
+                        "Authorization": (
+                            f"Bearer {returning.json()['sessionId']}"
+                        )
+                    }
+                    self.assertEqual(
+                        len(
+                            client.get(
+                                "/api/suggestions",
+                                headers=returning_headers,
+                            ).json()
+                        ),
+                        1,
+                    )
+
+    def test_rejects_duplicate_account_and_invalid_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_database = TemporaryDatabase(
+                Path(directory) / "clearcover.sqlite3"
+            )
+            with patch.object(main_module, "database", temporary_database):
+                with TestClient(app) as client:
+                    account = {
+                        "displayName": "Alice Tan",
+                        "email": "alice@example.test",
+                        "password": "strong-pass-1",
+                    }
+                    self.assertEqual(
+                        client.post(
+                            "/api/auth/sign-up", json=account
+                        ).status_code,
+                        201,
+                    )
+                    self.assertEqual(
+                        client.post(
+                            "/api/auth/sign-up", json=account
+                        ).status_code,
+                        409,
+                    )
+                    self.assertEqual(
+                        client.post(
+                            "/api/auth/sign-in",
+                            json={
+                                "email": account["email"],
+                                "password": "wrong-password",
+                            },
+                        ).status_code,
+                        401,
+                    )
+                    self.assertEqual(
+                        client.get("/api/suggestions").status_code,
+                        401,
+                    )
+                    self.assertEqual(
+                        client.post(
+                            "/api/chat",
+                            json={
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": "Fictional details",
+                                    }
+                                ]
+                            },
+                        ).status_code,
+                        401,
+                    )
 
 
 class ProviderRoutingTests(unittest.IsolatedAsyncioTestCase):
