@@ -1,21 +1,50 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
+import os
 import re
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai import collect_criteria
-from .schemas import ChatRequest, ChatResponse, ProfileResponse
+from .database import TemporaryDatabase
+from .schemas import (
+    ChatRequest,
+    ChatResponse,
+    DemoSessionResponse,
+    ProfileResponse,
+)
 
 
 logger = logging.getLogger(__name__)
-app = FastAPI(title="ClearCover information collection API", version="0.1.0")
+database = TemporaryDatabase()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    database.initialize()
+    yield
+
+
+app = FastAPI(
+    title="ClearCover V1 foundation API",
+    version="0.2.0",
+    lifespan=lifespan,
+)
+frontend_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_methods=["POST"],
+    allow_origins=frontend_origins,
+    allow_methods=["DELETE", "POST"],
     allow_headers=["Content-Type"],
 )
 
@@ -28,7 +57,34 @@ SENSITIVE_PATTERNS = (
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    if not database.is_ready():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Temporary database is unavailable.",
+        )
+    return {"status": "ok", "database": "ok"}
+
+
+@app.post(
+    "/api/demo-sessions",
+    response_model=DemoSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_demo_session() -> DemoSessionResponse:
+    session = database.create_demo_session()
+    return DemoSessionResponse(
+        sessionId=session.session_id,
+        createdAt=session.created_at,
+    )
+
+
+@app.delete(
+    "/api/demo-sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_demo_session(session_id: str) -> Response:
+    database.delete_demo_session(session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

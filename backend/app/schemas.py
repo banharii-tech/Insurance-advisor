@@ -116,3 +116,8 @@ class ChatResponse(StrictModel):
     profile: Optional[ProfileResponse]
     missingFields: list[MissingField]
     readyForReview: bool
+
+
+class DemoSessionResponse(StrictModel):
+    sessionId: str
+    createdAt: str

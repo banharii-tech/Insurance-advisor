@@ -13,8 +13,9 @@ interface ChatApiResponse {
   readyForReview: boolean;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const CHAT_API_URL =
-  process.env.NEXT_PUBLIC_CHAT_API_URL ?? "http://localhost:8000/api/chat";
+  process.env.NEXT_PUBLIC_CHAT_API_URL ?? `${API_URL}/api/chat`;
 
 export async function sendChatMessages(
   messages: ChatMessage[],

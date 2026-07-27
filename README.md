@@ -88,28 +88,29 @@ professional.
 
 ## Web application
 
-The KAN-6/KAN-8 application uses a guided freeform chat to collect planning
-details, then requires the user to review and correct the extracted criteria.
-Only after confirmation does the browser compare the three fictional plans
-using the unchanged age/coverage/budget rules. The LLM collects information; it
-does not recommend or rank plans. A completed PDF summary is created locally.
+The KAN-7 foundation combines the KAN-6 frontend and KAN-8 AI collection
+backend with a disposable SQLite session store and a clearly labelled fake
+login. No authentication or real account is created. After entering the demo,
+the guided chat collects planning details and requires the user to review and
+correct the extracted criteria. Only then does the browser run the unchanged
+age/coverage/budget rules. The LLM does not recommend or rank plans.
+
+## Run the local platform
+
+Place `OPENROUTER_API_KEY` in the uncommitted root `.env` file, then run:
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-# Load OPENROUTER_API_KEY from the uncommitted root .env, then:
-uvicorn app.main:app --reload
+./scripts/start.sh
 ```
 
-In another terminal:
+Open `http://127.0.0.1:3000`. Stop both services and remove the temporary demo
+database with:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+./scripts/stop.sh
 ```
 
-See [`frontend/README.md`](frontend/README.md) for the full development and
-validation commands.
+The start script prepares missing Python/Node dependencies, starts the FastAPI
+backend and Next.js frontend, verifies both health endpoints, and writes local
+logs under `.run/`. See [`frontend/README.md`](frontend/README.md) and
+[`backend/README.md`](backend/README.md) for component-level commands.

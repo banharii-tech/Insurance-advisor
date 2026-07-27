@@ -1,10 +1,11 @@
 # ClearCover frontend
 
-A Next.js App Router application for Jira issues KAN-6 and KAN-8. A guided AI
-chat collects the minimum non-medical planning details in the user's own words.
-The user reviews and can correct the structured criteria before the unchanged,
-deterministic comparison checks three fictional KAN-5 plans. A completed PDF
-summary can then be created locally.
+A Next.js App Router application for Jira issues KAN-6, KAN-7, and KAN-8. A
+clearly labelled fake login opens a disposable backend demo session without
+authentication. A guided AI chat then collects the minimum non-medical
+planning details in the user's own words. The user reviews and can correct the
+structured criteria before the unchanged deterministic comparison checks
+three fictional KAN-5 plans.
 
 Chat messages are sent to the local backend and processed by OpenRouter on a
 Cerebras zero-data-retention endpoint. The prototype does not persist or log
@@ -14,18 +15,14 @@ entered and are not required.
 
 ## Run locally
 
+The preferred full-stack workflow from the repository root is:
+
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-set -a
-source ../.env
-set +a
-uvicorn app.main:app --reload
+./scripts/start.sh
+./scripts/stop.sh
 ```
 
-In another terminal:
+For frontend-only development, start the backend separately and run:
 
 ```bash
 cd frontend
@@ -34,6 +31,9 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+Set `NEXT_PUBLIC_API_URL` when the backend is not available at
+`http://localhost:8000`.
 
 The backend pins `openrouter/openai/gpt-oss-120b` to the Cerebras provider,
 disables provider fallback, and validates every extraction against explicit

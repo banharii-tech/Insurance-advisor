@@ -1,0 +1,220 @@
+.loginPage {
+  width: min(1180px, calc(100% - 48px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 72px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.7fr);
+  gap: 88px;
+  align-items: center;
+}
+
+.loginIntroduction :global(.brand) {
+  margin-bottom: 92px;
+}
+
+.loginIntroduction h1 {
+  max-width: 720px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.3rem, 7vw, 6.5rem);
+  font-weight: 400;
+  letter-spacing: -0.07em;
+  line-height: 0.92;
+}
+
+.loginIntroduction h1 em {
+  color: var(--teal);
+  font-weight: 400;
+}
+
+.loginIntroduction > p:not(:global(.eyebrow)) {
+  max-width: 640px;
+  margin-top: 30px;
+  color: var(--ink-soft);
+  font-size: 1.04rem;
+  line-height: 1.7;
+}
+
+.loginIntroduction ul {
+  margin-top: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+}
+
+.loginIntroduction li {
+  padding: 9px 12px;
+  color: #31594e;
+  background: rgba(188, 232, 214, 0.55);
+  border: 1px solid rgba(13, 117, 95, 0.14);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.loginCard {
+  padding: 46px;
+  background: var(--white);
+  border: 1px solid rgba(16, 39, 47, 0.13);
+  border-top: 5px solid var(--teal);
+  box-shadow: 22px 24px 0 rgba(11, 42, 53, 0.08);
+}
+
+.demoBadge {
+  display: inline-block;
+  margin-bottom: 26px;
+  color: var(--teal);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.loginCard h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.35rem;
+  font-weight: 400;
+  letter-spacing: -0.045em;
+}
+
+.loginCard > p {
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.65;
+}
+
+.loginCard form {
+  margin-top: 32px;
+  display: grid;
+  gap: 18px;
+}
+
+.loginCard label {
+  display: grid;
+  gap: 8px;
+  color: #263f47;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.loginCard input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  color: #52676d;
+  background: #f3f1eb;
+  border: 1px solid #cdd2ca;
+}
+
+.loginCard small {
+  color: #6c7e82;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.loginCard form button {
+  min-height: 54px;
+  margin-top: 6px;
+  padding: 0 19px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--white);
+  background: var(--teal);
+  border: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.loginCard form button:hover:not(:disabled) {
+  background: #075f4d;
+}
+
+.loginCard form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.loginError {
+  padding: 12px 14px;
+  color: #843322 !important;
+  background: #fff0eb;
+  border-left: 3px solid var(--coral);
+}
+
+.sessionControls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sessionControls > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #31594e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sessionControls > span > span {
+  width: 8px;
+  height: 8px;
+  background: #1a9f77;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(26, 159, 119, 0.14);
+}
+
+.sessionControls button {
+  padding: 9px 13px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid rgba(16, 39, 47, 0.3);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+@media (max-width: 850px) {
+  .loginPage {
+    padding: 38px 0 64px;
+    grid-template-columns: 1fr;
+    gap: 44px;
+  }
+
+  .loginIntroduction :global(.brand) {
+    margin-bottom: 62px;
+  }
+
+  .loginIntroduction h1 {
+    font-size: clamp(3rem, 15vw, 5rem);
+  }
+
+  .loginCard {
+    width: min(520px, 100%);
+    padding: 34px 26px;
+    box-shadow: 12px 14px 0 rgba(11, 42, 53, 0.08);
+  }
+
+  .sessionControls > span {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .loginPage {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .loginIntroduction :global(.brand) {
+    margin-bottom: 48px;
+  }
+
+  .sessionControls {
+    gap: 8px;
+  }
+}
