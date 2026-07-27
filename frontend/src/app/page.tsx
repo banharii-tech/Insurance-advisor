@@ -27,9 +27,9 @@ export default function Home() {
               <em>Keep the choice yours.</em>
             </h1>
             <p className="hero-description">
-              Enter a few non-medical planning details, compare three fictional
-              plan categories, and download a transparent summary—all without
-              sending your information anywhere.
+              Describe a few non-medical planning details in a guided chat,
+              review what was understood, and compare three fictional plan
+              categories using transparent rules.
             </p>
           </div>
 
@@ -38,7 +38,8 @@ export default function Home() {
             <strong>Not financial advice.</strong>
             <p>
               Every provider, plan, premium and coverage amount shown here is
-              fictional. No real insurer or customer data is used.
+              fictional. Chat answers are processed only to fill the criteria
+              you review and are not saved by this prototype.
             </p>
           </aside>
         </section>

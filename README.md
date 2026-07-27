@@ -88,10 +88,22 @@ professional.
 
 ## Web application
 
-The KAN-6 Next.js application is in [`frontend`](frontend). It provides a
-browser-based form, compares the three fictional plans using the same
-age/coverage/budget rules, and creates a completed PDF summary locally without
-uploading or storing the entered details.
+The KAN-6/KAN-8 application uses a guided freeform chat to collect planning
+details, then requires the user to review and correct the extracted criteria.
+Only after confirmation does the browser compare the three fictional plans
+using the unchanged age/coverage/budget rules. The LLM collects information; it
+does not recommend or rank plans. A completed PDF summary is created locally.
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+# Load OPENROUTER_API_KEY from the uncommitted root .env, then:
+uvicorn app.main:app --reload
+```
+
+In another terminal:
 
 ```bash
 cd frontend

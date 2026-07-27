@@ -38,7 +38,9 @@ describe("createPlanningSummaryPdf", () => {
     let downloadedFilename = "";
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function captureDownload() {
+      .mockImplementation(function captureDownload(
+        this: HTMLAnchorElement,
+      ) {
         downloadedFilename = this.download;
       });
 
