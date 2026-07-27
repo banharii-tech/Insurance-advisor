@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.ai import collect_criteria
+from app.database import TemporaryDatabase
 from app.main import app
 from app.schemas import ChatExtraction, ChatMessage
 
@@ -70,6 +74,29 @@ class ChatApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("provider response", response.text)
+
+
+class DemoSessionApiTests(unittest.TestCase):
+    def test_session_lifecycle_and_database_health(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_database = TemporaryDatabase(
+                Path(directory) / "clearcover.sqlite3"
+            )
+            with patch.object(main_module, "database", temporary_database):
+                with TestClient(app) as client:
+                    health = client.get("/health")
+                    created = client.post("/api/demo-sessions")
+
+                    self.assertEqual(health.status_code, 200)
+                    self.assertEqual(health.json()["database"], "ok")
+                    self.assertEqual(created.status_code, 201)
+                    self.assertEqual(temporary_database.count_demo_sessions(), 1)
+
+                    deleted = client.delete(
+                        f"/api/demo-sessions/{created.json()['sessionId']}"
+                    )
+                    self.assertEqual(deleted.status_code, 204)
+                    self.assertEqual(temporary_database.count_demo_sessions(), 0)
 
 
 class ProviderRoutingTests(unittest.IsolatedAsyncioTestCase):

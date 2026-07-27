@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ClearCover | Fictional Insurance Planning Prototype",
+  title: "ClearCover | Insurance Planning Demo",
   description:
-    "A private, transparent learning prototype for comparing fictional Singapore insurance plan categories.",
+    "A transparent demo platform for comparing fictional Singapore insurance plan categories.",
 };
 
 export default function RootLayout({
