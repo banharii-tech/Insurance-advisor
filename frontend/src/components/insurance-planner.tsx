@@ -1,8 +1,15 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { FICTIONAL_PLANS } from "@/data/plans";
+import { sendChatMessages, type ChatMessage } from "@/lib/chat";
 import { formatSgd } from "@/lib/format";
 import { evaluatePlans } from "@/lib/recommendation";
 import { validateProfile } from "@/lib/validation";
@@ -16,13 +23,11 @@ import type {
 
 import styles from "./insurance-planner.module.css";
 
-const DEFAULT_PROFILE: PlanningProfile = {
-  age: 34,
-  annualBudgetSgd: 3_000,
-  residencyStatus: "Foreigner",
-  spouseCitizenship: "Singapore citizen",
-  needsGovernmentHospital: true,
-  needsCriticalIllness: true,
+const INITIAL_MESSAGE: ChatMessage = {
+  id: 1,
+  role: "assistant",
+  content:
+    "Hi, I’m the ClearCover planning assistant. Tell me what kind of fictional coverage you want to compare, and I’ll ask only for the details this prototype needs.",
 };
 
 const residencyOptions: ResidencyStatus[] = [
@@ -75,7 +80,6 @@ function PlanCard({ evaluation }: { evaluation: PlanEvaluation }) {
           {evaluation.status}
         </span>
       </div>
-
       <div className={styles.planNumbers}>
         <div>
           <span>Annual premium</span>
@@ -88,11 +92,9 @@ function PlanCard({ evaluation }: { evaluation: PlanEvaluation }) {
           </strong>
         </div>
       </div>
-
       <p className={styles.hospitalLevel}>
         {evaluation.plan.hospitalCoverageLevel}
       </p>
-
       <ul className={styles.criteria} aria-label="Comparison checks">
         <li>
           <span>Age range</span>
@@ -107,50 +109,108 @@ function PlanCard({ evaluation }: { evaluation: PlanEvaluation }) {
           <CheckMark passed={evaluation.budgetMatch} />
         </li>
       </ul>
-
       <p className={styles.explanation}>{evaluation.explanation}</p>
     </article>
   );
 }
 
 export default function InsurancePlanner() {
-  const [profile, setProfile] = useState<PlanningProfile>(DEFAULT_PROFILE);
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
+  const [answer, setAnswer] = useState("");
+  const [profile, setProfile] = useState<PlanningProfile | null>(null);
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [evaluations, setEvaluations] = useState<PlanEvaluation[] | null>(null);
+  const [chatState, setChatState] = useState<"idle" | "working" | "error">(
+    "idle",
+  );
+  const [chatError, setChatError] = useState("");
   const [downloadState, setDownloadState] = useState<
     "idle" | "working" | "done" | "error"
   >("idle");
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (transcriptRef.current) {
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    }
+  }, [messages, chatState, profile]);
 
   const updateProfile = <Key extends keyof PlanningProfile>(
     key: Key,
     value: PlanningProfile[Key],
   ) => {
-    setProfile((current) => ({ ...current, [key]: value }));
+    setProfile((current) => (current ? { ...current, [key]: value } : current));
+    setErrors((current) => ({ ...current, [key]: undefined }));
     setEvaluations(null);
     setDownloadState("idle");
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleChatSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const content = answer.trim();
+    if (!content || chatState === "working") return;
+
+    const nextMessages = [
+      ...messages,
+      { id: Date.now(), role: "user" as const, content },
+    ];
+    setMessages(nextMessages);
+    setAnswer("");
+    setChatError("");
+    setChatState("working");
+
+    try {
+      const response = await sendChatMessages(nextMessages);
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: response.assistantMessage,
+        },
+      ]);
+      if (response.readyForReview && response.profile) {
+        setProfile(response.profile);
+      }
+      setChatState("idle");
+    } catch (error) {
+      setChatError(
+        error instanceof Error
+          ? error.message
+          : "The planning assistant is temporarily unavailable.",
+      );
+      setChatState("error");
+    }
+  };
+
+  const handleComposerKeyDown = (
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const handleCompare = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!profile) return;
     const nextErrors = validateProfile(profile);
     setErrors(nextErrors);
-
     if (Object.keys(nextErrors).length > 0) {
       requestAnimationFrame(() => errorSummaryRef.current?.focus());
       return;
     }
 
-    const nextEvaluations = evaluatePlans(profile, FICTIONAL_PLANS);
-    setEvaluations(nextEvaluations);
+    setEvaluations(evaluatePlans(profile, FICTIONAL_PLANS));
     requestAnimationFrame(() => resultsRef.current?.focus());
   };
 
   const handleDownload = async () => {
-    if (!evaluations) return;
+    if (!evaluations || !profile) return;
     setDownloadState("working");
-
     try {
       const { downloadPlanningSummary } = await import("@/lib/download");
       await downloadPlanningSummary(profile, evaluations);
@@ -158,6 +218,17 @@ export default function InsurancePlanner() {
     } catch {
       setDownloadState("error");
     }
+  };
+
+  const resetConversation = () => {
+    setMessages([INITIAL_MESSAGE]);
+    setAnswer("");
+    setProfile(null);
+    setErrors({});
+    setEvaluations(null);
+    setChatError("");
+    setChatState("idle");
+    setDownloadState("idle");
   };
 
   const recommended = evaluations?.find(
@@ -168,226 +239,232 @@ export default function InsurancePlanner() {
     <section className={styles.planner} aria-labelledby="planner-heading">
       <div className={styles.stepRail} aria-label="Planning steps">
         <span className={styles.activeStep}>
-          <b>1</b> Your details
+          <b>1</b> Chat
+        </span>
+        <span className={profile ? styles.activeStep : ""}>
+          <b>2</b> Review
         </span>
         <span className={evaluations ? styles.activeStep : ""}>
-          <b>2</b> Compare plans
+          <b>3</b> Compare
         </span>
         <span className={downloadState === "done" ? styles.activeStep : ""}>
-          <b>3</b> Download
+          <b>4</b> Download
         </span>
       </div>
 
       <div className={styles.workspace}>
         <div className={styles.formPanel}>
           <div className={styles.sectionHeading}>
-            <p>Step 01</p>
-            <h2 id="planner-heading">Tell us what matters</h2>
+            <p>Guided planning chat</p>
+            <h2 id="planner-heading">Tell us in your own words</h2>
             <span>
-              Start with the fictional KAN-5 example or adjust the planning
-              details. Nothing is sent or saved.
+              Share only age, budget, residency, spouse status and coverage
+              preferences. Do not include names, contact details, identifiers
+              or medical information.
             </span>
           </div>
 
-          {Object.keys(errors).length > 0 && (
-            <div
-              className={styles.errorSummary}
-              ref={errorSummaryRef}
-              tabIndex={-1}
-              role="alert"
-            >
-              <strong>Please check your details.</strong>
-              <ul>
-                {Object.values(errors).map((error) => (
-                  <li key={error}>{error}</li>
-                ))}
-              </ul>
+          <div
+            className={styles.transcript}
+            ref={transcriptRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Conversation with planning assistant"
+          >
+            {messages.map((message) => (
+              <div
+                className={`${styles.message} ${
+                  message.role === "user"
+                    ? styles.userMessage
+                    : styles.assistantMessage
+                }`}
+                key={message.id}
+              >
+                <span>{message.role === "user" ? "You" : "ClearCover"}</span>
+                <p>{message.content}</p>
+              </div>
+            ))}
+            {chatState === "working" && (
+              <div className={`${styles.message} ${styles.assistantMessage}`}>
+                <span>ClearCover</span>
+                <p className={styles.thinking}>Thinking…</p>
+              </div>
+            )}
+          </div>
+
+          {!profile && (
+            <form className={styles.composer} onSubmit={handleChatSubmit}>
+              <label className={styles.srOnly} htmlFor="chat-answer">
+                Reply to the planning assistant
+              </label>
+              <textarea
+                id="chat-answer"
+                value={answer}
+                onChange={(event) => setAnswer(event.currentTarget.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder="For example: I’m 34 and want hospital and critical illness cover…"
+                rows={3}
+                maxLength={1_000}
+                disabled={chatState === "working"}
+              />
+              <div>
+                <small>Enter to send · Shift+Enter for a new line</small>
+                <button
+                  className={styles.primaryButton}
+                  type="submit"
+                  disabled={!answer.trim() || chatState === "working"}
+                >
+                  Send <span aria-hidden="true">↑</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {chatError && (
+            <div className={styles.chatError} role="alert">
+              <p>{chatError}</p>
+              <button type="button" onClick={() => setChatState("idle")}>
+                Try again
+              </button>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate>
-            <div className={styles.fieldGrid}>
-              <div className={styles.field}>
-                <label htmlFor="age">Age</label>
-                <div className={styles.inputShell}>
+          {profile && (
+            <form className={styles.reviewCard} onSubmit={handleCompare}>
+              <div className={styles.reviewHeading}>
+                <div>
+                  <span>Review before comparison</span>
+                  <h3>Did we understand you correctly?</h3>
+                </div>
+                <button type="button" onClick={resetConversation}>
+                  Start over
+                </button>
+              </div>
+
+              {Object.keys(errors).length > 0 && (
+                <div
+                  className={styles.errorSummary}
+                  ref={errorSummaryRef}
+                  tabIndex={-1}
+                  role="alert"
+                >
+                  <strong>Please check these details.</strong>
+                  <ul>
+                    {Object.values(errors).map((error) => (
+                      <li key={error}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className={styles.fieldGrid}>
+                <label className={styles.field}>
+                  <span>Age</span>
                   <input
-                    id="age"
+                    aria-label="Age"
                     type="number"
                     min="18"
                     max="100"
-                    step="1"
                     value={Number.isNaN(profile.age) ? "" : profile.age}
                     onChange={(event) =>
                       updateProfile("age", event.currentTarget.valueAsNumber)
                     }
-                    aria-invalid={Boolean(errors.age)}
-                    aria-describedby={errors.age ? "age-error" : "age-hint"}
                   />
-                  <span>years</span>
-                </div>
-                {errors.age ? (
-                  <p className={styles.fieldError} id="age-error">
-                    {errors.age}
-                  </p>
-                ) : (
-                  <p className={styles.hint} id="age-hint">
-                    Adults aged 18 to 100
-                  </p>
-                )}
-              </div>
-
-              <div className={styles.field}>
-                <label htmlFor="budget">Annual insurance budget</label>
-                <div className={styles.inputShell}>
-                  <span>S$</span>
+                </label>
+                <label className={styles.field}>
+                  <span>Annual budget (S$)</span>
                   <input
-                    id="budget"
+                    aria-label="Annual insurance budget"
                     type="number"
                     min="1"
                     max="100000"
-                    step="100"
-                    value={
-                      Number.isNaN(profile.annualBudgetSgd)
-                        ? ""
-                        : profile.annualBudgetSgd
-                    }
+                    value={profile.annualBudgetSgd}
                     onChange={(event) =>
                       updateProfile(
                         "annualBudgetSgd",
                         event.currentTarget.valueAsNumber,
                       )
                     }
-                    aria-invalid={Boolean(errors.annualBudgetSgd)}
-                    aria-describedby={
-                      errors.annualBudgetSgd ? "budget-error" : "budget-hint"
-                    }
                   />
-                  <span>/ year</span>
+                </label>
+                <label className={styles.field}>
+                  <span>Residency status</span>
+                  <select
+                    value={profile.residencyStatus}
+                    onChange={(event) =>
+                      updateProfile(
+                        "residencyStatus",
+                        event.currentTarget.value as ResidencyStatus,
+                      )
+                    }
+                  >
+                    {residencyOptions.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>Spouse citizenship</span>
+                  <select
+                    value={profile.spouseCitizenship}
+                    onChange={(event) =>
+                      updateProfile(
+                        "spouseCitizenship",
+                        event.currentTarget.value as SpouseCitizenship,
+                      )
+                    }
+                  >
+                    {spouseOptions.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <fieldset className={styles.coverageFieldset}>
+                <legend>Coverage to compare</legend>
+                <div className={styles.coverageOptions}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={profile.needsGovernmentHospital}
+                      onChange={(event) =>
+                        updateProfile(
+                          "needsGovernmentHospital",
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
+                    <span className={styles.customCheck} aria-hidden="true" />
+                    <span>
+                      <strong>Public hospital plan</strong>
+                      <small>Government/public hospital category</small>
+                    </span>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={profile.needsCriticalIllness}
+                      onChange={(event) =>
+                        updateProfile(
+                          "needsCriticalIllness",
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
+                    <span className={styles.customCheck} aria-hidden="true" />
+                    <span>
+                      <strong>Critical illness</strong>
+                      <small>Fictional lump-sum coverage category</small>
+                    </span>
+                  </label>
                 </div>
-                {errors.annualBudgetSgd ? (
-                  <p className={styles.fieldError} id="budget-error">
-                    {errors.annualBudgetSgd}
-                  </p>
-                ) : (
-                  <p className={styles.hint} id="budget-hint">
-                    Comparison uses annual fictional premiums
-                  </p>
-                )}
-              </div>
-
-              <div className={styles.field}>
-                <label htmlFor="residency">Residency status</label>
-                <select
-                  id="residency"
-                  value={profile.residencyStatus}
-                  onChange={(event) =>
-                    updateProfile(
-                      "residencyStatus",
-                      event.currentTarget.value as ResidencyStatus,
-                    )
-                  }
-                >
-                  {residencyOptions.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-                <p className={styles.hint}>Shown in the summary only</p>
-              </div>
-
-              <div className={styles.field}>
-                <label htmlFor="spouse-citizenship">
-                  Spouse citizenship
-                </label>
-                <select
-                  id="spouse-citizenship"
-                  value={profile.spouseCitizenship}
-                  onChange={(event) =>
-                    updateProfile(
-                      "spouseCitizenship",
-                      event.currentTarget.value as SpouseCitizenship,
-                    )
-                  }
-                >
-                  {spouseOptions.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-                <p className={styles.hint}>Not used as an eligibility rule</p>
-              </div>
-            </div>
-
-            <fieldset
-              className={styles.coverageFieldset}
-              aria-describedby={
-                errors.coverageNeeds ? "coverage-error" : "coverage-hint"
-              }
-            >
-              <legend>What would you like to compare?</legend>
-              <p className={styles.hint} id="coverage-hint">
-                Select one or both fictional coverage categories.
-              </p>
-              <div className={styles.coverageOptions}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={profile.needsGovernmentHospital}
-                    onChange={(event) =>
-                      updateProfile(
-                        "needsGovernmentHospital",
-                        event.currentTarget.checked,
-                      )
-                    }
-                  />
-                  <span className={styles.customCheck} aria-hidden="true" />
-                  <span>
-                    <strong>Public hospital plan</strong>
-                    <small>Government/public hospital category</small>
-                  </span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={profile.needsCriticalIllness}
-                    onChange={(event) =>
-                      updateProfile(
-                        "needsCriticalIllness",
-                        event.currentTarget.checked,
-                      )
-                    }
-                  />
-                  <span className={styles.customCheck} aria-hidden="true" />
-                  <span>
-                    <strong>Critical illness</strong>
-                    <small>Fictional lump-sum coverage category</small>
-                  </span>
-                </label>
-              </div>
-              {errors.coverageNeeds && (
-                <p className={styles.fieldError} id="coverage-error">
-                  {errors.coverageNeeds}
-                </p>
-              )}
-            </fieldset>
-
-            <div className={styles.formActions}>
+              </fieldset>
               <button className={styles.primaryButton} type="submit">
-                Compare fictional plans
+                Confirm and compare fictional plans
                 <span aria-hidden="true">→</span>
               </button>
-              <button
-                className={styles.textButton}
-                type="button"
-                onClick={() => {
-                  setProfile(DEFAULT_PROFILE);
-                  setErrors({});
-                  setEvaluations(null);
-                  setDownloadState("idle");
-                }}
-              >
-                Reset example
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
 
         <div
@@ -399,35 +476,33 @@ export default function InsurancePlanner() {
           {!evaluations ? (
             <div className={styles.emptyState}>
               <div className={styles.emptyArtwork} aria-hidden="true">
-                <span>01</span>
-                <span>02</span>
-                <span>03</span>
+                <span>ASK</span>
+                <span>CHECK</span>
+                <span>COMPARE</span>
               </div>
-              <p>Step 02</p>
-              <h2>Your comparison will appear here</h2>
+              <p>Deterministic comparison</p>
+              <h2>The assistant collects. The rules decide.</h2>
               <span>
-                Three fictional plans will be checked against age, selected
-                coverage and annual budget. Every result includes an
-                explanation.
+                The AI only turns your conversation into criteria you can
+                review. It never selects or ranks a plan.
               </span>
               <ul>
-                <li>No personal data is uploaded</li>
-                <li>No medical questions</li>
-                <li>No real insurer or product data</li>
+                <li>Chat answers are sent to the configured AI provider</li>
+                <li>No names or medical details needed</li>
+                <li>Only fictional plan data is shown</li>
               </ul>
             </div>
           ) : (
             <>
               <div className={styles.resultHeading}>
                 <div>
-                  <p>Step 02</p>
+                  <p>Suggested fictional matches</p>
                   <h2>Your fictional plan comparison</h2>
                 </div>
                 <span className={styles.resultCount}>
                   {evaluations.length} plans checked
                 </span>
               </div>
-
               <div
                 className={
                   recommended
@@ -436,7 +511,7 @@ export default function InsurancePlanner() {
                 }
               >
                 <span>
-                  {recommended ? "Prototype recommendation" : "No full match"}
+                  {recommended ? "Prototype suggestion" : "No full match"}
                 </span>
                 <strong>
                   {recommended
@@ -446,10 +521,9 @@ export default function InsurancePlanner() {
                 <p>
                   {recommended
                     ? recommended.explanation
-                    : "Review the three explanations below or adjust the age, coverage or budget inputs."}
+                    : "Review the explanations below or start a new conversation to change your criteria."}
                 </p>
               </div>
-
               <div className={styles.planList}>
                 {evaluations.map((evaluation) => (
                   <PlanCard
@@ -458,14 +532,13 @@ export default function InsurancePlanner() {
                   />
                 ))}
               </div>
-
               <div className={styles.downloadPanel}>
                 <div>
-                  <span>Step 03</span>
+                  <span>Download</span>
                   <strong>Keep your fictional planning summary</strong>
                   <p>
-                    The PDF is created in this browser and downloaded directly
-                    to your device.
+                    The completed PDF is created in this browser and downloaded
+                    directly to your device.
                   </p>
                 </div>
                 <button
@@ -486,6 +559,13 @@ export default function InsurancePlanner() {
                     "The PDF could not be created. Please try again."}
                 </p>
               </div>
+              <button
+                className={styles.restartButton}
+                type="button"
+                onClick={resetConversation}
+              >
+                Start a new conversation
+              </button>
             </>
           )}
         </div>
