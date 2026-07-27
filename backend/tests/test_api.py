@@ -17,6 +17,8 @@ from app.schemas import ChatExtraction, ChatMessage
 READY_EXTRACTION = ChatExtraction.model_validate(
     {
         "assistant_message": "Please review these details.",
+        "request_intent": "combined",
+        "unsupported_topic": None,
         "criteria": {
             "age": 34,
             "annual_budget_sgd": 3000,
@@ -31,6 +33,21 @@ READY_EXTRACTION = ChatExtraction.model_validate(
         "missing_fields": [],
         "needs_confirmation": True,
         "ready_for_review": True,
+    }
+)
+
+UNSUPPORTED_EXTRACTION = ChatExtraction.model_validate(
+    {
+        "assistant_message": (
+            "I cannot create a life plan or provide financial advice. "
+            "I can guide a public hospital or critical illness comparison."
+        ),
+        "request_intent": "unsupported",
+        "unsupported_topic": "life_plan",
+        "criteria": {},
+        "missing_fields": [],
+        "needs_confirmation": False,
+        "ready_for_review": False,
     }
 )
 
@@ -50,6 +67,27 @@ class ChatApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["profile"]["age"], 34)
         self.assertTrue(response.json()["readyForReview"])
+        self.assertEqual(response.json()["requestIntent"], "combined")
+        self.assertFalse(response.json()["needsSupportedPlanChoice"])
+
+    @patch("app.main.collect_criteria", new_callable=AsyncMock)
+    def test_guides_unsupported_request_to_supported_types(
+        self, mock_collect: AsyncMock
+    ) -> None:
+        mock_collect.return_value = UNSUPPORTED_EXTRACTION
+        response = self.client.post(
+            "/api/chat",
+            json={"messages": [{"role": "user", "content": "I want a life plan"}]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["profile"])
+        self.assertEqual(response.json()["requestIntent"], "unsupported")
+        self.assertTrue(response.json()["needsSupportedPlanChoice"])
+        self.assertEqual(
+            response.json()["supportedPlanTypes"],
+            ["hospitalisation", "critical_illness", "combined"],
+        )
 
     def test_rejects_contact_details_before_model_call(self) -> None:
         response = self.client.post(

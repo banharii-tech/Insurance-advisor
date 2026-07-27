@@ -8,6 +8,16 @@ const PAGE_HEIGHT = 842;
 const MARGIN = 52;
 const LINE_HEIGHT = 15;
 
+export function getPlanningSummaryTitle(profile: PlanningProfile): string {
+  if (profile.needsGovernmentHospital && profile.needsCriticalIllness) {
+    return "COMBINED HOSPITAL AND CRITICAL ILLNESS PLANNING SUMMARY";
+  }
+  if (profile.needsGovernmentHospital) {
+    return "PUBLIC HOSPITAL PLANNING SUMMARY";
+  }
+  return "CRITICAL ILLNESS PLANNING SUMMARY";
+}
+
 function wrapText(
   text: string,
   maxWidth: number,
@@ -77,7 +87,7 @@ export async function createPlanningSummaryPdf(
     y -= options.gapAfter ?? 0;
   };
 
-  drawText("FICTIONAL INSURANCE PLANNING SUMMARY", {
+  drawText(`FICTIONAL ${getPlanningSummaryTitle(profile)}`, {
     size: 16,
     isBold: true,
     color: rgb(0.02, 0.35, 0.3),

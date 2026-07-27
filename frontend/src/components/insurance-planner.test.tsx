@@ -24,6 +24,13 @@ function mockReadyConversation(profile = extractedProfile) {
         profile,
         missingFields: [],
         readyForReview: true,
+        requestIntent: "combined",
+        needsSupportedPlanChoice: false,
+        supportedPlanTypes: [
+          "hospitalisation",
+          "critical_illness",
+          "combined",
+        ],
       }),
     }),
   );
@@ -41,7 +48,7 @@ describe("InsurancePlanner", () => {
 
     expect(
       screen.getByRole("log", { name: "Conversation with planning assistant" }),
-    ).toHaveTextContent("Tell me what kind of fictional coverage");
+    ).toHaveTextContent("I can guide a fictional public hospital");
 
     await user.type(
       screen.getByLabelText("Reply to the planning assistant"),
@@ -127,5 +134,71 @@ describe("InsurancePlanner", () => {
         }),
       ).getByText("My email is person@example.com"),
     ).toBeInTheDocument();
+  });
+
+  it("redirects unsupported requests into a guided supported plan choice", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          assistantMessage:
+            "I can’t generate a life plan or provide personal financial advice. I can guide the closest supported public hospital or critical illness comparison.",
+          profile: null,
+          missingFields: ["supported_plan_type"],
+          readyForReview: false,
+          requestIntent: "unsupported",
+          needsSupportedPlanChoice: true,
+          supportedPlanTypes: [
+            "hospitalisation",
+            "critical_illness",
+            "combined",
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          assistantMessage: "What is your age?",
+          profile: null,
+          missingFields: ["age"],
+          readyForReview: false,
+          requestIntent: "critical_illness",
+          needsSupportedPlanChoice: false,
+          supportedPlanTypes: [
+            "hospitalisation",
+            "critical_illness",
+            "combined",
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<InsurancePlanner />);
+
+    await user.type(
+      screen.getByLabelText("Reply to the planning assistant"),
+      "Create a life plan and give me financial advice.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByText(/I can’t generate a life plan/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Supported planning summaries" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Critical illness/ }),
+    );
+    expect(await screen.findByText("What is your age?")).toBeInTheDocument();
+
+    const secondRequest = JSON.parse(
+      String(fetchMock.mock.calls[1][1]?.body),
+    ) as { messages: Array<{ content: string }> };
+    expect(secondRequest.messages.at(-1)?.content).toBe(
+      "Guide me through a critical illness insurance comparison.",
+    );
   });
 });

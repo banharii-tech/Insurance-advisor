@@ -20,6 +20,7 @@ from .schemas import (
 
 logger = logging.getLogger(__name__)
 database = TemporaryDatabase()
+SUPPORTED_PLAN_TYPES = ["hospitalisation", "critical_illness", "combined"]
 
 
 @asynccontextmanager
@@ -128,4 +129,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
         profile=profile,
         missingFields=extraction.missing_fields,
         readyForReview=extraction.ready_for_review,
+        requestIntent=extraction.request_intent,
+        needsSupportedPlanChoice=(
+            "supported_plan_type" in extraction.missing_fields
+        ),
+        supportedPlanTypes=SUPPORTED_PLAN_TYPES,
     )

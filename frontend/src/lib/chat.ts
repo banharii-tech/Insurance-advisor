@@ -6,11 +6,26 @@ export interface ChatMessage {
   content: string;
 }
 
-interface ChatApiResponse {
+export type RequestIntent =
+  | "hospitalisation"
+  | "critical_illness"
+  | "combined"
+  | "unsupported"
+  | "undetermined";
+
+export type SupportedPlanType =
+  | "hospitalisation"
+  | "critical_illness"
+  | "combined";
+
+export interface ChatApiResponse {
   assistantMessage: string;
   profile: PlanningProfile | null;
   missingFields: string[];
   readyForReview: boolean;
+  requestIntent: RequestIntent;
+  needsSupportedPlanChoice: boolean;
+  supportedPlanTypes: SupportedPlanType[];
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
