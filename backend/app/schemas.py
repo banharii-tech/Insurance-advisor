@@ -18,6 +18,14 @@ SpouseCitizenship = Literal[
     "Not applicable",
     "Prefer not to say",
 ]
+RequestIntent = Literal[
+    "hospitalisation",
+    "critical_illness",
+    "combined",
+    "unsupported",
+    "undetermined",
+]
+UnsupportedTopic = Literal["life_plan", "financial_advice", "other"]
 
 
 class StrictModel(BaseModel):
@@ -59,11 +67,14 @@ MissingField = Literal[
     "residency_status",
     "spouse_citizenship",
     "coverage_needs",
+    "supported_plan_type",
 ]
 
 
 class ChatExtraction(StrictModel):
     assistant_message: Annotated[str, Field(min_length=1, max_length=800)]
+    request_intent: RequestIntent
+    unsupported_topic: Optional[UnsupportedTopic] = None
     criteria: ExtractedCriteria
     missing_fields: list[MissingField]
     needs_confirmation: bool
@@ -72,8 +83,33 @@ class ChatExtraction(StrictModel):
     @model_validator(mode="after")
     def validate_review_state(self) -> "ChatExtraction":
         criteria = self.criteria
+        if self.request_intent in {
+            "hospitalisation",
+            "critical_illness",
+            "combined",
+        }:
+            self.unsupported_topic = None
+            criteria.hospitalisation.required = self.request_intent in {
+                "hospitalisation",
+                "combined",
+            }
+            criteria.hospitalisation.government_hospital = (
+                criteria.hospitalisation.required
+            )
+            criteria.critical_illness.required = self.request_intent in {
+                "critical_illness",
+                "combined",
+            }
+        elif (
+            self.request_intent == "unsupported"
+            and self.unsupported_topic is None
+        ):
+            self.unsupported_topic = "other"
+
         coverage_complete = (
-            criteria.hospitalisation.required is not None
+            self.request_intent
+            in {"hospitalisation", "critical_illness", "combined"}
+            and criteria.hospitalisation.required is not None
             and criteria.critical_illness.required is not None
             and (
                 criteria.hospitalisation.required
@@ -89,7 +125,9 @@ class ChatExtraction(StrictModel):
             actual_missing.append("residency_status")
         if criteria.spouse_citizenship is None:
             actual_missing.append("spouse_citizenship")
-        if not coverage_complete:
+        if self.request_intent in {"unsupported", "undetermined"}:
+            actual_missing.append("supported_plan_type")
+        elif not coverage_complete:
             actual_missing.append("coverage_needs")
 
         self.missing_fields = actual_missing
@@ -116,6 +154,11 @@ class ChatResponse(StrictModel):
     profile: Optional[ProfileResponse]
     missingFields: list[MissingField]
     readyForReview: bool
+    requestIntent: RequestIntent
+    needsSupportedPlanChoice: bool
+    supportedPlanTypes: list[
+        Literal["hospitalisation", "critical_illness", "combined"]
+    ]
 
 
 class DemoSessionResponse(StrictModel):

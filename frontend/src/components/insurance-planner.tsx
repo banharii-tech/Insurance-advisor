@@ -27,8 +27,30 @@ const INITIAL_MESSAGE: ChatMessage = {
   id: 1,
   role: "assistant",
   content:
-    "Hi, I’m the ClearCover planning assistant. Tell me what kind of fictional coverage you want to compare, and I’ll ask only for the details this prototype needs.",
+    "Hi, I’m the ClearCover planning assistant. I can guide a fictional public hospital, critical illness, or combined comparison. Choose a planning summary below or tell me what you need.",
 };
+
+const PLAN_TYPE_CHOICES = [
+  {
+    value: "hospitalisation",
+    label: "Public hospital",
+    description: "Compare fictional plans for government-hospital coverage.",
+    message: "Guide me through a public hospital insurance comparison.",
+  },
+  {
+    value: "critical_illness",
+    label: "Critical illness",
+    description: "Compare fictional plans with critical illness coverage.",
+    message: "Guide me through a critical illness insurance comparison.",
+  },
+  {
+    value: "combined",
+    label: "Both",
+    description: "Compare fictional plans across both coverage needs.",
+    message:
+      "Guide me through a combined public hospital and critical illness comparison.",
+  },
+] as const;
 
 const residencyOptions: ResidencyStatus[] = [
   "Singapore citizen",
@@ -124,9 +146,11 @@ export default function InsurancePlanner() {
     "idle",
   );
   const [chatError, setChatError] = useState("");
+  const [showPlanChoices, setShowPlanChoices] = useState(true);
   const [downloadState, setDownloadState] = useState<
     "idle" | "working" | "done" | "error"
   >("idle");
+  const nextMessageIdRef = useRef(2);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -147,14 +171,12 @@ export default function InsurancePlanner() {
     setDownloadState("idle");
   };
 
-  const handleChatSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const content = answer.trim();
+  const sendMessage = async (content: string) => {
     if (!content || chatState === "working") return;
 
     const nextMessages = [
       ...messages,
-      { id: Date.now(), role: "user" as const, content },
+      { id: nextMessageIdRef.current++, role: "user" as const, content },
     ];
     setMessages(nextMessages);
     setAnswer("");
@@ -166,7 +188,7 @@ export default function InsurancePlanner() {
       setMessages((current) => [
         ...current,
         {
-          id: Date.now() + 1,
+          id: nextMessageIdRef.current++,
           role: "assistant",
           content: response.assistantMessage,
         },
@@ -174,6 +196,7 @@ export default function InsurancePlanner() {
       if (response.readyForReview && response.profile) {
         setProfile(response.profile);
       }
+      setShowPlanChoices(response.needsSupportedPlanChoice);
       setChatState("idle");
     } catch (error) {
       setChatError(
@@ -183,6 +206,11 @@ export default function InsurancePlanner() {
       );
       setChatState("error");
     }
+  };
+
+  const handleChatSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await sendMessage(answer.trim());
   };
 
   const handleComposerKeyDown = (
@@ -221,12 +249,14 @@ export default function InsurancePlanner() {
   };
 
   const resetConversation = () => {
+    nextMessageIdRef.current = 2;
     setMessages([INITIAL_MESSAGE]);
     setAnswer("");
     setProfile(null);
     setErrors({});
     setEvaluations(null);
     setChatError("");
+    setShowPlanChoices(true);
     setChatState("idle");
     setDownloadState("idle");
   };
@@ -291,6 +321,35 @@ export default function InsurancePlanner() {
               </div>
             )}
           </div>
+
+          {!profile && showPlanChoices && (
+            <section
+              className={styles.planTypeChoices}
+              aria-labelledby="plan-type-heading"
+            >
+              <div>
+                <h3 id="plan-type-heading">Supported planning summaries</h3>
+                <p>
+                  Life plans and personal financial advice are outside this
+                  prototype. We can offer the closest supported comparison
+                  without treating it as equivalent advice.
+                </p>
+              </div>
+              <div>
+                {PLAN_TYPE_CHOICES.map((choice) => (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    onClick={() => void sendMessage(choice.message)}
+                    disabled={chatState === "working"}
+                  >
+                    <strong>{choice.label}</strong>
+                    <span>{choice.description}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {!profile && (
             <form className={styles.composer} onSubmit={handleChatSubmit}>

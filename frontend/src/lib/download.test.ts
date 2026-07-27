@@ -4,6 +4,7 @@ import { FICTIONAL_PLANS } from "@/data/plans";
 import {
   createPlanningSummaryPdf,
   downloadPlanningSummary,
+  getPlanningSummaryTitle,
 } from "@/lib/download";
 import { evaluatePlans } from "@/lib/recommendation";
 import type { PlanningProfile } from "@/types/planning";
@@ -18,6 +19,23 @@ const profile: PlanningProfile = {
 };
 
 describe("createPlanningSummaryPdf", () => {
+  it.each([
+    [true, false, "PUBLIC HOSPITAL PLANNING SUMMARY"],
+    [false, true, "CRITICAL ILLNESS PLANNING SUMMARY"],
+    [true, true, "COMBINED HOSPITAL AND CRITICAL ILLNESS PLANNING SUMMARY"],
+  ])(
+    "labels the supported summary type for hospital=%s and critical illness=%s",
+    (needsGovernmentHospital, needsCriticalIllness, expected) => {
+      expect(
+        getPlanningSummaryTitle({
+          ...profile,
+          needsGovernmentHospital,
+          needsCriticalIllness,
+        }),
+      ).toBe(expected);
+    },
+  );
+
   it("creates a non-empty PDF containing the completed comparison", async () => {
     const evaluations = evaluatePlans(profile, FICTIONAL_PLANS);
     const bytes = await createPlanningSummaryPdf(

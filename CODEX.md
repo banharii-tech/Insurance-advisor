@@ -27,6 +27,10 @@ phase.
   frontend and backend, a disposable SQLite data layer, a no-auth demo login,
   and unified local start/stop scripts. Recommendation features remain
   unchanged.
+- **KAN-9 — completed:** the AI chat classifies hospital, critical illness,
+  combined, and unsupported requests. Life-plan and financial-advice requests
+  receive a clear boundary and guided choices for the closest supported
+  fictional planning summaries.
 
 ## Delivery phases
 
@@ -34,16 +38,15 @@ phase.
 
 This phase was completed by KAN-5 and KAN-6.
 
-Build a frontend-only prototype that:
+The completed frontend-only prototype:
 
-- Lets users choose between hospitalisation and critical illness insurance.
-- Collects the minimum information required to search for suitable plans.
-- Uses local mock data for insurance products.
-- Applies deterministic, explainable matching rules.
-- Displays a ranked shortlist of suitable plans.
-- Explains why each plan was suggested.
-- Shows important plan information, limitations, and source dates.
-- Works without a backend, database, authentication, or LLM.
+- let users compare hospitalisation and critical illness categories;
+- collected age, residency, spouse citizenship, annual budget, and coverage
+  needs;
+- used three clearly fictional local plans;
+- applied deterministic age, coverage, and budget checks;
+- explained every plan result; and
+- produced a local PDF summary.
 
 The historical Phase 1 implementation did not include AI chat.
 
@@ -63,104 +66,101 @@ The LLM must assist with information collection and field population. It must no
 
 This phase was completed by KAN-7. The development foundation:
 
-- Keep the existing Next.js frontend and FastAPI backend.
-- Add a disposable local database for temporary platform state.
-- Add a clearly labelled fake login that creates a demo session without
+- keeps the existing Next.js frontend and FastAPI backend;
+- adds a disposable local database for temporary platform state;
+- adds a clearly labelled fake login that creates a demo session without
   authentication or real credentials.
-- Provide repository-level scripts that start and stop the full local stack.
-- Keep authentication, persistent customer accounts, and new recommendation
+- provides repository-level scripts that start and stop the full local stack;
+  and
+- leaves authentication, persistent customer accounts, and new recommendation
   features out of scope.
+
+### Phase 4: Supported plan-type guidance
+
+This phase was completed by KAN-9. The chat and summary flow:
+
+- supports public/government hospital, critical illness, and combined planning
+  summaries;
+- presents those choices before the user starts typing;
+- recognises life-plan and personal-financial-advice requests as unsupported;
+- explains the boundary without presenting a supported type as equivalent
+  advice;
+- guides the user back into a supported journey; and
+- labels the generated PDF for the selected supported planning type.
 
 ## Implemented user journey
 
 1. The user enters through a no-auth demo login.
-2. The AI-guided chat collects the minimum relevant planning information.
-3. The user reviews and can correct the extracted criteria.
-4. The application validates the criteria.
-5. The application filters and ranks fictional plans using documented,
+2. The user chooses a supported planning-summary type or describes their need.
+3. The AI-guided chat redirects unsupported requests or collects the minimum
+   relevant planning information.
+4. The user reviews and can correct the extracted criteria.
+5. The application validates the criteria.
+6. The application filters and ranks fictional plans using documented,
    deterministic matching rules.
-6. The application displays an explained shortlist and can create a local PDF
+7. The application displays an explained shortlist and can create a local PDF
    summary.
-7. The user can start over or end the disposable demo session.
+8. The user can start over or end the disposable demo session.
 
-## Suggested form fields
+## Implemented planning criteria
 
-Collect only fields required by the prototype.
+The current prototype collects only:
 
-### Shared fields
+- age;
+- Singapore residency status;
+- spouse citizenship, for the summary only;
+- maximum annual premium budget; and
+- whether public/government hospital and/or critical illness coverage should be
+  compared.
 
-- Age
-- Singapore residency status
-- Smoker status, when relevant
-- Maximum monthly or annual premium budget
-- Existing relevant coverage
-- Preferred coverage amount
+The current matching engine does not use residency or spouse citizenship as
+eligibility rules because the fictional plan data does not provide a basis for
+those rules.
 
-### Hospitalisation fields
+Do not collect names, NRIC numbers, contact details, credentials, detailed
+medical records, or other unnecessary personal information.
 
-- Preferred hospital or ward class
-- Existing MediShield Life or Integrated Shield Plan coverage
-- Preference for a rider
-- Acceptable deductible or co-insurance
+### Future V1 criteria, not yet implemented
 
-### Critical illness fields
-
-- Required coverage amount
-- Early-stage, late-stage, or multi-stage coverage preference
-- Preferred coverage term
-- Existing critical illness coverage
-
-Do not collect names, NRIC numbers, contact details, detailed medical records, or other unnecessary personal information in the prototype.
+Future Jira tickets may add smoker status, existing coverage, preferred
+coverage amount, ward class, riders, deductible/co-insurance preferences,
+critical illness stage, and preferred term. Do not treat these as current
+capabilities until the data model, product data, UI, and deterministic rules
+support them.
 
 ## Insurance product data
 
-Use fictional or clearly marked sample plans during Phase 1.
+The current application uses three clearly marked fictional plans defined in
+`frontend/src/data/plans.ts`. Each currently contains:
 
-Each plan should include:
+- stable plan, provider, and plan names;
+- minimum and maximum age;
+- public-hospital and critical-illness category flags;
+- a fictional critical-illness amount; and
+- a fictional annual premium.
 
-- Stable plan ID
-- Insurer name
-- Plan name
-- Insurance category
-- Minimum and maximum entry age
-- Residency eligibility
-- Indicative premium or premium band
-- Coverage amount or benefit limit
-- Policy term
-- Key benefits
-- Deductible and co-insurance, when applicable
-- Waiting periods
-- Major exclusions or limitations
-- Source URL
-- Effective or last-reviewed date
-- Data status, such as `sample`, `verified`, or `stale`
-
-Never invent real product terms. Real plans may be added only from verified, current sources and must retain their source URL and review date.
+Real plans are not implemented. Before adding them, extend the schema to
+include verified eligibility, benefits, terms, exclusions, waiting periods,
+source URL, last-reviewed date, and data status. Never invent real product
+terms.
 
 ## Suggestion logic
 
-Keep matching deterministic and explainable.
+The implemented matching logic is deterministic and remains separate from the
+LLM:
 
-1. Exclude plans that fail mandatory eligibility requirements.
-2. Exclude plans outside the user's stated budget.
-3. Score the remaining plans using relevant factors such as:
-   - Coverage fit
-   - Budget fit
-   - Preferred hospital or ward class
-   - Critical illness stage preference
-   - Desired policy term
-   - Existing coverage and possible duplication
-4. Return a small ranked shortlist rather than claiming that one plan is definitively the best.
-5. Attach reason codes and plain-language explanations to every result.
-6. Show a manual-review message when information is missing, uncertain, or potentially conflicting.
+1. `ageMatch` passes when the entered age is inside the fictional plan range.
+2. `coverageMatch` passes when the plan includes every selected category.
+3. `budgetMatch` passes when the fictional annual premium is within budget.
+4. A candidate must pass all three checks.
+5. When critical illness is selected, candidates rank by greatest fictional
+   critical-illness coverage, then lower premium, then plan ID.
+6. Otherwise, candidates rank by lower premium, then plan ID.
+7. Results are labelled `Recommended`, `Alternative`, or `Not recommended`,
+   with a plain-language explanation of each check.
 
-The UI must distinguish:
-
-- Eligibility
-- Matching score
-- Estimated affordability
-- Missing information
-- Final suitability, which requires appropriate professional assessment
+This is a transparent prototype comparison, not a financial-suitability score
+or regulated recommendation.
 
 ## Development process
 
@@ -230,35 +230,54 @@ These requirements apply only when a Jira issue explicitly includes the AI-chat 
 - Keep the deterministic eligibility and ranking engine separate from the LLM.
 - There is an OPENROUTER_API_KEY in the .env file in the project root.
 
-An AI extraction result should follow a structure similar to:
+The implemented AI extraction result uses a structure similar to:
 
 ```json
 {
-  "insuranceType": "hospitalisation",
+  "assistant_message": "Please review these details.",
+  "request_intent": "combined",
+  "unsupported_topic": null,
   "criteria": {
-    "age": 35,
-    "residencyStatus": "citizen",
-    "maximumAnnualPremium": 1500,
-    "preferredWardClass": "A",
-    "existingCoverage": true
+    "age": 34,
+    "annual_budget_sgd": 3000,
+    "residency_status": "Foreigner",
+    "spouse_citizenship": "Singapore citizen",
+    "hospitalisation": {
+      "required": true,
+      "government_hospital": true
+    },
+    "critical_illness": {
+      "required": true
+    }
   },
-  "missingFields": [],
-  "needsConfirmation": false
+  "missing_fields": [],
+  "needs_confirmation": true,
+  "ready_for_review": true
 }
 ```
 
-Define separate validated schemas for hospitalisation and critical illness criteria. Do not depend on free-form model prose for application logic.
+Hospitalisation and critical illness criteria use separate nested Pydantic
+models. `request_intent` is one of `hospitalisation`, `critical_illness`,
+`combined`, `unsupported`, or `undetermined`; unsupported requests additionally
+classify the topic. Do not depend on free-form model prose for application
+logic.
 
 ## Product and compliance safeguards
 
-- Use language such as “suggested plans,” “potential matches,” or “shortlist.”
-- Do not state that a plan is guaranteed to be suitable.
-- Display that premiums and product terms may change.
-- Display the product-data source and last-reviewed date.
-- Explain that exclusions, underwriting, waiting periods, and final premiums require confirmation from the insurer.
-- Provide a clear prototype and financial-advice disclaimer.
-- Do not use synthetic or stale information as if it were current product data.
-- Treat user answers as sensitive financial information even when the prototype stores them only in browser memory.
+Current safeguards:
+
+- use “suggested,” “potential match,” and prototype language;
+- never claim that a plan is guaranteed to be suitable;
+- clearly label every plan, provider, premium, and coverage amount as
+  fictional;
+- display the prototype and financial-advice disclaimer;
+- block common contact and identification patterns before an AI request;
+- do not log or persist planning answers in the backend; and
+- store only disposable demo session IDs in SQLite.
+
+Before introducing real product data, display verified sources, last-reviewed
+dates, and warnings that terms, premiums, exclusions, underwriting, and
+waiting periods require confirmation from the insurer.
 
 ## Definition of done
 
@@ -272,3 +291,30 @@ A feature is complete only when:
 - Product data remains traceable to its source.
 - Documentation is updated.
 - A focused pull request has been created with evidence of testing.
+
+## Current implementation reference
+
+- **Frontend:** Next.js 16, React 19, TypeScript, Vitest, and Testing Library in
+  `frontend/`.
+- **Backend:** FastAPI and Pydantic in `backend/`; LiteLLM calls
+  `openrouter/openai/gpt-oss-120b` through OpenRouter with Cerebras-only,
+  no-fallback, zero-data-retention routing.
+- **Temporary state:** SQLite stores only no-auth demo session IDs and is
+  removed by the stop script.
+- **Core endpoints:** `GET /health`, `POST /api/demo-sessions`,
+  `DELETE /api/demo-sessions/{session_id}`, and `POST /api/chat`.
+- **Recommendation boundary:** the AI extracts criteria; the browser runs the
+  unchanged deterministic plan evaluation.
+- **Local run:** from the repository root, use `./scripts/start.sh`, open
+  `http://127.0.0.1:3000`, and finish with `./scripts/stop.sh`.
+- **Configuration:** keep `OPENROUTER_API_KEY` in the uncommitted root `.env`;
+  optional database, origin, model, provider, base URL, timeout, and frontend
+  API settings are environment-configurable.
+- **Supported summaries:** public/government hospital, critical illness, and a
+  combined summary. Life plans and personal financial advice remain outside
+  the prototype.
+- **Verified baseline:** 13 backend tests and 23 frontend tests pass; frontend
+  lint and type-check also pass for the KAN-9 implementation.
+- **Intentional limitations:** no real authentication, accounts, production
+  database, real insurer data, life-plan generation, personal financial advice,
+  or final suitability assessment.

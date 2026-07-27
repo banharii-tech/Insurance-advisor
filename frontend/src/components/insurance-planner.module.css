@@ -159,6 +159,68 @@
   font-style: italic;
 }
 
+.planTypeChoices {
+  margin-top: 14px;
+  padding: 15px;
+  background: #eef7f3;
+  border: 1px solid #bfd4ca;
+}
+
+.planTypeChoices h3 {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.planTypeChoices p {
+  margin-top: 4px;
+  color: #536b70;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.planTypeChoices > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.planTypeChoices button {
+  padding: 12px;
+  color: var(--ink);
+  text-align: left;
+  background: var(--white);
+  border: 1px solid #abb9b4;
+  cursor: pointer;
+}
+
+.planTypeChoices button:hover:not(:disabled),
+.planTypeChoices button:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(13, 117, 95, 0.12);
+}
+
+.planTypeChoices button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.planTypeChoices strong,
+.planTypeChoices span {
+  display: block;
+}
+
+.planTypeChoices strong {
+  font-size: 0.75rem;
+}
+
+.planTypeChoices span {
+  margin-top: 4px;
+  color: #607479;
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
 .composer {
   margin-top: 14px;
   padding: 14px;
@@ -908,6 +970,10 @@
 
   .message {
     max-width: 94%;
+  }
+
+  .planTypeChoices > div:last-child {
+    grid-template-columns: 1fr;
   }
 
   .composer > div,
