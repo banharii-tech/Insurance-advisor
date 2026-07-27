@@ -19,14 +19,19 @@ describe("sendChatMessages", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await sendChatMessages([
-      { id: 17, role: "user", content: "I am 34." },
-    ]);
+    await sendChatMessages(
+      [{ id: 17, role: "user", content: "I am 34." }],
+      "session-123",
+    );
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8000/api/chat",
       expect.objectContaining({
         method: "POST",
+        headers: {
+          Authorization: "Bearer session-123",
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           messages: [{ role: "user", content: "I am 34." }],
         }),

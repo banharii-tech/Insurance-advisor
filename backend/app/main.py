@@ -4,17 +4,23 @@ from contextlib import asynccontextmanager
 import logging
 import os
 import re
+from typing import Annotated, Optional
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai import collect_criteria
-from .database import TemporaryDatabase
+from .database import TemporaryDatabase, UserSession
 from .schemas import (
+    AuthSessionResponse,
     ChatRequest,
     ChatResponse,
-    DemoSessionResponse,
     ProfileResponse,
+    SignInRequest,
+    SignUpRequest,
+    SuggestionCreate,
+    SuggestionResponse,
+    UserResponse,
 )
 
 
@@ -25,13 +31,13 @@ SUPPORTED_PLAN_TYPES = ["hospitalisation", "critical_illness", "combined"]
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    database.initialize()
+    database.initialize(reset=True)
     yield
 
 
 app = FastAPI(
-    title="ClearCover V1 foundation API",
-    version="0.2.0",
+    title="ClearCover temporary workspace API",
+    version="0.3.0",
     lifespan=lifespan,
 )
 frontend_origins = [
@@ -45,8 +51,8 @@ frontend_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=frontend_origins,
-    allow_methods=["DELETE", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["DELETE", "GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 SENSITIVE_PATTERNS = (
@@ -66,30 +72,120 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "database": "ok"}
 
 
-@app.post(
-    "/api/demo-sessions",
-    response_model=DemoSessionResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_demo_session() -> DemoSessionResponse:
-    session = database.create_demo_session()
-    return DemoSessionResponse(
+def _session_response(session: UserSession) -> AuthSessionResponse:
+    return AuthSessionResponse(
         sessionId=session.session_id,
         createdAt=session.created_at,
+        user=UserResponse(
+            userId=session.user_id,
+            displayName=session.display_name,
+            email=session.email,
+        ),
     )
 
 
-@app.delete(
-    "/api/demo-sessions/{session_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+def require_session(
+    authorization: Annotated[Optional[str], Header()] = None,
+) -> UserSession:
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to access your saved drafts.",
+        )
+    session = database.get_session(token)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your temporary session has expired. Please sign in again.",
+        )
+    return session
+
+
+@app.post(
+    "/api/auth/sign-up",
+    response_model=AuthSessionResponse,
+    status_code=status.HTTP_201_CREATED,
 )
-async def delete_demo_session(session_id: str) -> Response:
-    database.delete_demo_session(session_id)
+async def sign_up(request: SignUpRequest) -> AuthSessionResponse:
+    try:
+        session = database.register_user(
+            request.displayName,
+            request.email,
+            request.password,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+    return _session_response(session)
+
+
+@app.post("/api/auth/sign-in", response_model=AuthSessionResponse)
+async def sign_in(request: SignInRequest) -> AuthSessionResponse:
+    session = database.sign_in(request.email, request.password)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The email or password is incorrect.",
+        )
+    return _session_response(session)
+
+
+@app.delete(
+    "/api/auth/sessions/current", status_code=status.HTTP_204_NO_CONTENT
+)
+async def sign_out(session: UserSession = Depends(require_session)) -> Response:
+    database.delete_session(session.session_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@app.get("/api/suggestions", response_model=list[SuggestionResponse])
+async def list_suggestions(
+    session: UserSession = Depends(require_session),
+) -> list[SuggestionResponse]:
+    return [
+        SuggestionResponse.model_validate(
+            {
+                **record.payload,
+                "suggestionId": record.suggestion_id,
+                "createdAt": record.created_at,
+            }
+        )
+        for record in database.list_suggestions(session.user_id)
+    ]
+
+
+@app.post(
+    "/api/suggestions",
+    response_model=SuggestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def save_suggestion(
+    request: SuggestionCreate,
+    session: UserSession = Depends(require_session),
+) -> SuggestionResponse:
+    record = database.save_suggestion(
+        session.user_id,
+        request.title,
+        request.summaryType,
+        request.model_dump(mode="json"),
+    )
+    return SuggestionResponse.model_validate(
+        {
+            **record.payload,
+            "suggestionId": record.suggestion_id,
+            "createdAt": record.created_at,
+        }
+    )
+
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    _: UserSession = Depends(require_session),
+) -> ChatResponse:
     latest_answer = request.messages[-1].content
     if any(pattern.search(latest_answer) for pattern in SENSITIVE_PATTERNS):
         raise HTTPException(

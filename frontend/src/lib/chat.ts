@@ -34,10 +34,16 @@ const CHAT_API_URL =
 
 export async function sendChatMessages(
   messages: ChatMessage[],
+  sessionId?: string,
 ): Promise<ChatApiResponse> {
   const response = await fetch(CHAT_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      ...(sessionId
+        ? { Authorization: `Bearer ${sessionId}` }
+        : {}),
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
     }),

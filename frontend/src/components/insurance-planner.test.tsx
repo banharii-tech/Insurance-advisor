@@ -106,6 +106,41 @@ describe("InsurancePlanner", () => {
     expect(screen.getAllByText("Not recommended")).toHaveLength(3);
   });
 
+  it("saves each completed comparison as a draft document", async () => {
+    const user = userEvent.setup();
+    const onSuggestionCreated = vi.fn().mockResolvedValue(undefined);
+    mockReadyConversation();
+    render(
+      <InsurancePlanner onSuggestionCreated={onSuggestionCreated} />,
+    );
+
+    await user.type(
+      screen.getByLabelText("Reply to the planning assistant"),
+      "My complete planning details",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Confirm and compare fictional plans",
+      }),
+    );
+
+    expect(onSuggestionCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Combined coverage planning draft",
+        summaryType: "combined",
+        profile: extractedProfile,
+        recommendedPlanName: "Example Balanced Bundle",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "This draft is available in your document history.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Suggestions are drafts only/)).toBeInTheDocument();
+  });
+
   it("shows a safe API error without losing the user's answer", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

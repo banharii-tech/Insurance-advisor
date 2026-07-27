@@ -1,17 +1,18 @@
 # ClearCover frontend
 
-A Next.js App Router application for Jira issues KAN-6, KAN-7, and KAN-8. A
-clearly labelled fake login opens a disposable backend demo session without
-authentication. A guided AI chat then collects the minimum non-medical
-planning details in the user's own words. The user reviews and can correct the
-structured criteria before the unchanged deterministic comparison checks
-three fictional KAN-5 plans.
+A Next.js App Router application for Jira issues KAN-6 through KAN-10.
+Temporary sign-up and sign-in open an isolated local workspace where users can
+return to saved fictional suggestion drafts while the backend is running. A
+guided AI chat collects the minimum non-medical planning details in the user's
+own words. The user reviews and can correct the structured criteria before the
+unchanged deterministic comparison checks three fictional KAN-5 plans.
 
 Chat messages are sent to the local backend and processed by OpenRouter on a
 Cerebras zero-data-retention endpoint. The prototype does not persist or log
-the answers. Plan evaluation and PDF creation happen in the browser. Names,
-contact details, identification numbers, and medical information must not be
-entered and are not required.
+raw chat answers. It stores only the reviewed profile and fictional comparison
+snapshot for each saved draft. Plan evaluation and PDF creation happen in the
+browser. Account information stays separate from the chat; contact details,
+identification numbers, and medical information must not be entered there.
 
 ## Run locally
 
@@ -72,7 +73,8 @@ use lower premium and then plan ID.
 
 ## Important disclaimer
 
-This is a fictional learning prototype, not financial advice. It contains no
-real insurer, product, customer, premium, or coverage data and does not assess
-real eligibility, underwriting, exclusions, waiting periods, claims, pricing,
-or policy terms.
+Every suggestion and PDF is a draft for review. This is a fictional learning
+prototype, not financial advice. It contains no real insurer, product, premium,
+or coverage data and does not assess real eligibility, underwriting,
+exclusions, waiting periods, claims, pricing, or policy terms. Temporary
+account data resets with the backend.

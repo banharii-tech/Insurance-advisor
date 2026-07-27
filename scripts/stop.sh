@@ -48,7 +48,7 @@ fi
 DATABASE_PATH="${DATABASE_PATH:-$RUN_DIR/clearcover.sqlite3}"
 if [[ -f "$DATABASE_PATH" ]]; then
   rm -f "$DATABASE_PATH"
-  echo "Removed the temporary demo database."
+  echo "Removed the temporary workspace database."
 fi
 
 echo "ClearCover is stopped."

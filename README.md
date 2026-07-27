@@ -88,12 +88,16 @@ professional.
 
 ## Web application
 
-The KAN-7 foundation combines the KAN-6 frontend and KAN-8 AI collection
-backend with a disposable SQLite session store and a clearly labelled fake
-login. No authentication or real account is created. After entering the demo,
-the guided chat collects planning details and requires the user to review and
+The current platform combines the responsive frontend and AI-guided collection
+backend with disposable local accounts and separate user workspaces. Users can
+sign up, sign back in while the server is running, and revisit saved fictional
+suggestions and draft documents. Passwords are salted and hashed; accounts,
+sessions, and histories reset on backend restart.
+
+The guided chat collects planning details and requires the user to review and
 correct the extracted criteria. Only then does the browser run the unchanged
-age/coverage/budget rules. The LLM does not recommend or rank plans.
+age/coverage/budget rules. The LLM does not recommend or rank plans. Every
+suggestion and PDF is labelled as a draft requiring review.
 
 ## Run the local platform
 
@@ -103,8 +107,8 @@ Place `OPENROUTER_API_KEY` in the uncommitted root `.env` file, then run:
 ./scripts/start.sh
 ```
 
-Open `http://127.0.0.1:3000`. Stop both services and remove the temporary demo
-database with:
+Open `http://127.0.0.1:3000`. Stop both services and remove the temporary
+workspace database with:
 
 ```bash
 ./scripts/stop.sh

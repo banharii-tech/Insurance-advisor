@@ -1,8 +1,8 @@
 # ClearCover V1 foundation API
 
-This FastAPI service provides the KAN-7 V1 backend foundation and powers the
-KAN-8 guided chat. It owns a disposable SQLite demo-session store, health
-checks, and server-side AI extraction.
+This FastAPI service provides the V1 backend foundation and powers the guided
+chat. It owns disposable local accounts, bearer sessions, per-user draft
+history, health checks, and server-side AI extraction.
 
 LiteLLM sends the conversation to `openrouter/openai/gpt-oss-120b`, pinned to
 the Cerebras provider with fallback disabled. Routing also requires a
@@ -31,18 +31,23 @@ uvicorn app.main:app --reload
 The service listens at `http://localhost:8000`. Use `DATABASE_PATH` to choose
 the disposable SQLite file and `FRONTEND_ORIGINS` to configure CORS. The
 repository-level `scripts/start.sh` sets both for the complete local stack.
+The database resets on every backend start.
 
-Never commit the OpenRouter key. Do not enter names, contact details,
-identification numbers, or medical information. The service does not persist
-chat requests or responses; technical failures are logged without user
-answers.
+Never commit the OpenRouter key. Account names and emails are kept separate
+from the planning chat and are never sent to the model. Do not enter contact
+details, identification numbers, or medical information in the chat. The
+service does not persist raw chat requests or responses; technical failures
+are logged without user answers.
 
 ## Foundation endpoints
 
 - `GET /health` verifies the API and temporary database.
-- `POST /api/demo-sessions` creates a disposable session without credentials
-  or authentication.
-- `DELETE /api/demo-sessions/{session_id}` removes a disposable session.
+- `POST /api/auth/sign-up` creates a temporary account and bearer session.
+- `POST /api/auth/sign-in` verifies a salted password hash and creates a
+  session.
+- `DELETE /api/auth/sessions/current` signs out the bearer session.
+- `GET /api/suggestions` lists the signed-in user's saved drafts.
+- `POST /api/suggestions` saves a validated comparison snapshot.
 - `POST /api/chat` performs schema-validated AI criteria extraction.
 
 ## Tests

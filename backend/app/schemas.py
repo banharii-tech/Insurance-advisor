@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 ResidencyStatus = Literal[
@@ -149,6 +155,92 @@ class ProfileResponse(StrictModel):
     needsCriticalIllness: bool
 
 
+class UserResponse(StrictModel):
+    userId: str
+    displayName: str
+    email: str
+
+
+class AuthSessionResponse(StrictModel):
+    sessionId: str
+    createdAt: str
+    user: UserResponse
+
+
+class SignUpRequest(StrictModel):
+    displayName: Annotated[str, Field(min_length=2, max_length=80)]
+    email: Annotated[
+        str,
+        Field(
+            min_length=5,
+            max_length=254,
+            pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+        ),
+    ]
+    password: Annotated[str, Field(min_length=8, max_length=128)]
+
+    @field_validator("displayName", "email", mode="before")
+    @classmethod
+    def strip_account_fields(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class SignInRequest(StrictModel):
+    email: Annotated[
+        str,
+        Field(
+            min_length=5,
+            max_length=254,
+            pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+        ),
+    ]
+    password: Annotated[str, Field(min_length=8, max_length=128)]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def strip_email(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class PlanSnapshot(StrictModel):
+    planId: str
+    providerName: str
+    planName: str
+    minAge: int
+    maxAge: int
+    includesGovernmentHospital: bool
+    hospitalCoverageLevel: str
+    includesCriticalIllness: bool
+    criticalIllnessCoverageSgd: float
+    annualPremiumSgd: float
+    isFictional: Literal[True]
+
+
+class PlanEvaluationSnapshot(StrictModel):
+    plan: PlanSnapshot
+    ageMatch: bool
+    coverageMatch: bool
+    budgetMatch: bool
+    criteriaMetCount: Annotated[int, Field(ge=0, le=3)]
+    status: Literal["Recommended", "Alternative", "Not recommended"]
+    explanation: str
+
+
+class SuggestionCreate(StrictModel):
+    title: Annotated[str, Field(min_length=1, max_length=120)]
+    summaryType: Literal["hospitalisation", "critical_illness", "combined"]
+    profile: ProfileResponse
+    evaluations: Annotated[
+        list[PlanEvaluationSnapshot], Field(min_length=1, max_length=20)
+    ]
+    recommendedPlanName: Optional[str] = None
+
+
+class SuggestionResponse(SuggestionCreate):
+    suggestionId: str
+    createdAt: str
+
+
 class ChatResponse(StrictModel):
     assistantMessage: str
     profile: Optional[ProfileResponse]
@@ -159,8 +251,3 @@ class ChatResponse(StrictModel):
     supportedPlanTypes: list[
         Literal["hospitalisation", "critical_illness", "combined"]
     ]
-
-
-class DemoSessionResponse(StrictModel):
-    sessionId: str
-    createdAt: str
